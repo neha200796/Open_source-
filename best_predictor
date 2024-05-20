@@ -2,20 +2,25 @@
 
 # Assignment 2, data analysis script, student num 23754739
 
-# Making sure only one argument can be passed
+# Function to handle errors
+handle_error() {
+  echo "Error: $1"
+  exit 1
+}
+
+# Ensure only one argument is passed
 if [[ $# -ne 1 ]]; then 
-    echo "Usage: $0 <cleaned tsv file>"
-    exit 0 
+    handle_error "Usage: $0 <cleaned tsv file>"
 fi 
 
+# Check if the file is not empty
 if [[ ! -s "$1" ]]; then 
-    echo "Usage: $1 TSV file has 0 bytes or input valid file"
-    exit 1
+    handle_error "TSV file has 0 bytes or input valid file"
 fi 
 
+# Check if the file is a regular file
 if [[ ! -f "$1" ]]; then 
-    echo "Usage: $1 is not a regular file"
-    exit 1
+    handle_error "$1 is not a regular file"
 fi
 
 # Function to calculate Pearson correlation using awk
@@ -28,7 +33,7 @@ calculate_correlation() {
     n = 0
     sum_x = sum_y = sum_xy = sum_x2 = sum_y2 = 0
   }
-  NR > 1 && $1 == country {
+  NR > 1 && $2 == country {
     x = $pred_col
     y = $8  # Cantril Ladder is the 8th column
     if (x != "" && y != "" && y != 0) {
@@ -63,8 +68,7 @@ calculate_correlation() {
 
 # Check if a data file is provided
 if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 datafile"
-  exit 1
+  handle_error "Usage: $0 datafile"
 fi
 
 # Input data file
@@ -72,18 +76,17 @@ datafile=$1
 
 # Check if the data file exists
 if [ ! -f "$datafile" ]; then
-  echo "Error: File '$datafile' not found!"
-  exit 1
+  handle_error "File '$datafile' not found!"
 fi
 
 # Temporary file to store filtered data
-tempfile=$(mktemp)
+tempfile=$(mktemp) || handle_error "Failed to create temporary file"
 
-# Filter out rows where the Cantril Ladder score is zero using awk
-awk -F'\t' '$8 != 0' "$datafile" > "$tempfile"
+# Filter out rows where the Cantril Ladder score is zero using awk and ensure unique country-year combination
+awk -F'\t' 'NR==1 || ($2 != "" && $8 != 0)' "$datafile" > "$tempfile" || handle_error "Failed to filter data"
 
 # Get list of countries
-countries=$(awk -F'\t' 'NR > 1 {print $1}' "$tempfile" | sort | uniq)
+countries=$(awk -F'\t' 'NR > 1 {print $2}' "$tempfile" | sort | uniq) || handle_error "Failed to extract countries"
 
 # Define columns for the predictors
 GDP_COLUMN=4
@@ -124,13 +127,13 @@ calculate_mean() {
   sum=0
   count=0
   for val in "${arr[@]}"; do
-    sum=$(echo "$sum + $val" | bc -l)
+    sum=$(echo "$sum + $val" | bc -l) || handle_error "Failed to calculate sum"
     count=$((count + 1))
   done
   if [ $count -eq 0 ]; then
     echo "0"
   else
-    echo "scale=4; $sum / $count" | bc -l
+    echo "scale=4; $sum / $count" | bc -l || handle_error "Failed to calculate mean"
   fi
 }
 
@@ -141,12 +144,12 @@ mean_correlation_homicide=$(calculate_mean "${homicide_correlations[@]}")
 mean_correlation_life_expectancy=$(calculate_mean "${life_expectancy_correlations[@]}")
 
 # Find the maximum absolute correlation
-abs_max_correlation=$(echo $mean_correlation_gdp | awk '{print ($1 < 0) ? -$1 : $1}')
+abs_max_correlation=$(echo $mean_correlation_gdp | awk '{print ($1 < 0) ? -$1 : $1}') || handle_error "Failed to calculate absolute correlation"
 best_predictor="GDP per capita"
 
 for predictor in "population" "homicide" "life_expectancy"; do
   eval correlation=\$mean_correlation_${predictor}
-  abs_correlation=$(echo $correlation | awk '{print ($1 < 0) ? -$1 : $1}')
+  abs_correlation=$(echo $correlation | awk '{print ($1 < 0) ? -$1 : $1}') || handle_error "Failed to calculate absolute correlation"
   if (( $(echo "$abs_correlation > $abs_max_correlation" | bc -l) )); then
     abs_max_correlation=$abs_correlation
     best_predictor=$(echo "$predictor" | sed 's/_/ /g' | awk '{print toupper(substr($0,1,1))substr($0,2)}')
@@ -162,3 +165,4 @@ echo "Most predictive mean correlation with the Cantril ladder is $best_predicto
 
 # Clean up temporary file
 rm "$tempfile"
+
