@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+
+# assignemnt 2, data analysis script, student num 22974467
+
+# making sure only one argument can be passed
+
+if [[ $# -ne 1 ]]
+then 
+    echo "Usage: $0 <cleaned tsv file>"
+    exit 0 
+fi 
+
+if [[ ! -s "$1" ]]
+then 
+    echo "Usage: $1 TSV file has 0 bytes or input vaild file"
+    exit 1
+fi 
+
+if [[ ! -f "$1" ]]
+then 
+    echo "Usage: $1 is not a regular file"
+    exit 1
+fi
+
+# Compute total number of incidents per month
+
+incidents_per_month=$(gawk -F"\t" 'NR > 1 { # skipper header 
+
+incidents[$6]++ #array increase counting the occurances 
+    }
+
+    END {  
+    
+    split("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec", months, " ") #split(s,a,fs) splits s into a on FS
+    
+    for (month in incidents) { # month = index in for loop 
+    
+        if (month in months) { # print months and value stored in incidents-array 
+        
+            print month, incidents[month]
+        
+        }
+    }
+
+}' "$1")
+
+# Compute median and MAD
+
+median=$(echo "$incidents_per_month" | gawk '{ month_incidents[NR] = $2; } # because data echo for first variable no gawk -v 
+
+# NR of incidents per month in $2
+
+# after exctracting second column, hence end 
+
+    END {
+
+    n = asort(month_incidents); #gawk function to sort the $2 array  
+    
+    if (n % 2 == 1) # if number of months is odd 
+    
+        print month_incidents[int(n/2) + 1];
+    
+    else # odd formula 
+        
+        print (month_incidents[n/2] + month_incidents[n/2 + 1]) / 2;
+}')
+
+mad=$(echo "$incidents_per_month" | gawk -v median="$median" '
+# gawk -v allows variables hence median 
+
+    {
+
+    deviations[NR] = $2 - median; # $2(median) to deivations array NR as index 
+    
+    }
+
+    END {
+    
+    n = length(deviations);
+    
+    for (i = 1; i <= n; i++) { # till larger than n and iterate 
+        
+        if (deviations[i] < 0) #check if deivation is less than 0 
+        
+            abs_deviation=-deviations[i]  # negates 
+    
+        else
+    
+            abs_deviation= deviations[i] 
+
+        deviations[i] = abs_deviation; # updates array 
+    }
+
+    asort(deviations);
+    
+    if (n % 2 == 1)
+    
+        mad = deviations[(n/2) + 1];
+    
+    else # eg is even to deal with that 
+        
+        mad = (deviations[n/2] + deviations[n/2 + 1]) / 2;
+   
+        printf "%.1f\n", mad;
+
+    }')
+
+# format not specifc, this is easier to read
+
+echo ""
+echo "Data: Median and Median Absolute Deviation (MAD)"
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+# Print median and MAD
+echo "Median = $median"
+echo "MAD = $mad"
+
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo "Column Data"
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+# Print table of months with incident counts and deviations
+
+echo -e "Month\tCount\tDeviation"
+
+echo "$incidents_per_month" | gawk -v median="$median" -v mad="$mad" '
+BEGIN {
+ 
+  above = median + mad; # one MAD above
+ 
+  below = median - mad; # one MAD below 
+  
+  FS = " ";
+    }
+
+    {
+  
+        diff = ""; # intialise variable 
+  
+        if ($2 > above)
+      
+            diff = "++";
+    
+        else if ($2 < below)
+      
+            diff = "--";
+    
+        else
+      
+            diff = "";
+      # couldnt figure out how to use the incidents column one make new array 
+     
+      month_names = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec"
+  
+      split(month_names, months, " ")
+  
+      month_abbr = months[$1]
+
+# tab sep string 2 times matches above and newline character 
+
+printf "%s\t%s\t%s\n", month_abbr, $2, diff;
+
+}'
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"  
+
+

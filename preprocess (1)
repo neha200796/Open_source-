@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+# Assigment 2, Data cleaning script, Student No: 22972267 
+
+# Check if only argument
+if [[ $# -ne 1 ]]
+then
+  echo "To clean a file, usage must be: $0 <file.tsv>"
+  exit 1
+fi
+
+# Check if the file exists/ordinary file
+if [[ ! -f "$1" ]]
+then
+  echo "$1 TSV file doesn't exist or is not an ordinary file"
+  echo "Check file path or if TSV is a vaild file"
+  exit 1
+fi
+
+# Check if the file is empty or has 0 bytes
+if [[ ! -s "$1" ]]
+then
+  echo " $1 TSV file is empty or has 0 bytes"
+  echo "Insert TSV file with data"
+  exit 1
+fi
+
+# Remove column 6 and 7
+ sed -i -e '1s/\tLocation_of_Breached_Information//' -e '1s/\tSummary//' -e 's/\t[^\t]*//7' -e 's/\t[^\t]*//6' "$1"
+# i = edit in place, -e for mulitple commands, search tab character followed by any characters replaces with empty line 
+
+
+gawk -F'\t' '{
+  
+if (NR == 1) { # if header (NR ==1) meaning print in new file a month and year header column
+  
+      print $0 "\tMonth\tYear"; # Add Month and Year columns after the final column
+
+    next;
+  
+}
+
+  # Check for erroneous data, if line zero skip 
+  
+      if ($1 == "" || $2 == "" || $4 == "" || $5 == "" || $6 == "") {
+
+          next;
+  
+  }
+
+  # Split data column, extract month and year
+  
+    date = $4;
+  
+        split(date, parts, "/"); #split(s,a,fs) s splits into a on fs: format is mm/dd/yyyy
+  
+            month = parts[1];
+  
+            year = parts[3];  # not all yyyy format: make sure year is in yyyy format
+
+    if (length(year) == 2 && year < 20) {
+  
+            year = "20" year;
+ 
+  } 
+        else if (length(year) == 2 && year > 20) {
+  
+            year = "19" year;
+        # ^ should be able to handle 1900s format? none in data
+  }
+
+  # month field should only be between 1 and 12 else skip 
+  
+    if (month < 1 || month > 12) {
+  
+          next;
+  
+  }
+
+  # Clean Type of Breach column
+  
+    type = $5;
+  
+        split(type, comma, ",");
+  
+        $5 = comma[1];
+  
+        split($5, slash, "/");
+  
+        $5 = slash[1];
+
+  # Remove leading zero from single-digit months
+  
+    sub(/^0/, "", month); # sub(r,s,t) sub s for r in t for first occurances/ should only be one extra 0
+  
+    gsub(/-.*/, "", year); # Remove hyphen and everything after it from the year
+  
+  # gsub(r,s,t) sub s for r in t globally, - in a lot of array data
+  
+  # gsub as some - have spaces etc 
+
+  # Output the cleaned data
+  
+  print $1 "\t" $2 "\t" $3 "\t" $4 "\t" $5 "\t" month "\t" year;i
+
+}' "$1" # to stdout
+
+# there is a leading whitespace, doesn't effect output so leave. 

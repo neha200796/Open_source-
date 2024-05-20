@@ -1,0 +1,16 @@
+Country	Year	Predictor	Cantril	Predictor*Cantril	Predictor^2	Cantril^2
+Afghanistan	AFG	61.4	4.25835	261.463	3769.96	18.1335
+Afghanistan	AFG	62.7	3.36	210.672	3931.29	11.2896
+Afghanistan	AFG	63.1	3.794	239.401	3981.61	14.3944
+Afghanistan	AFG	63	3.6315	228.785	3969	13.1878
+Afghanistan	AFG	63.1	3.2033	202.128	3981.61	10.2611
+Afghanistan	AFG	63.6	2.5669	163.255	4044.96	6.58898
+Afghanistan	AFG	62.6	2.5229	157.934	3918.76	6.36502
+Afghanistan	AFG	62	2.4038	149.036	3844	5.77825
+United Arab Emirates	ARE	78.5	6.977243	547.714	6162.25	48.6819
+United Arab Emirates	ARE	79	6.901	545.179	6241	47.6238
+United Arab Emirates	ARE	79.2	6.573	520.582	6272.64	43.2043
+United Arab Emirates	ARE	79.7	6.7908	541.227	6352.09	46.115
+United Arab Emirates	ARE	78.9	6.5605	517.623	6225.21	43.0402
+United Arab Emirates	ARE	78.7	6.576	517.531	6193.69	43.2438
+Oman	OMN	77.4	6.853	530.422	5990.76	46.9636

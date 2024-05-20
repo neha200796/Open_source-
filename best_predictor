@@ -1,0 +1,164 @@
+#!/bin/bash
+
+# Assignment 2, data analysis script, student num 23754739
+
+# Making sure only one argument can be passed
+if [[ $# -ne 1 ]]; then 
+    echo "Usage: $0 <cleaned tsv file>"
+    exit 0 
+fi 
+
+if [[ ! -s "$1" ]]; then 
+    echo "Usage: $1 TSV file has 0 bytes or input valid file"
+    exit 1
+fi 
+
+if [[ ! -f "$1" ]]; then 
+    echo "Usage: $1 is not a regular file"
+    exit 1
+fi
+
+# Function to calculate Pearson correlation using awk
+calculate_correlation() {
+  predictor_column=$1
+  country=$2
+  awk -v pred_col="$predictor_column" -v country="$country" '
+  BEGIN {
+    FS="\t"
+    n = 0
+    sum_x = sum_y = sum_xy = sum_x2 = sum_y2 = 0
+  }
+  NR > 1 && $1 == country {
+    x = $pred_col
+    y = $8  # Cantril Ladder is the 8th column
+    if (x != "" && y != "" && y != 0) {
+      x = x + 0
+      y = y + 0
+      sum_x += x
+      sum_y += y
+      sum_xy += x * y
+      sum_x2 += x * x
+      sum_y2 += y * y
+      n++
+    }
+  }
+  END {
+    if (n < 3) {
+      print "Insufficient data"
+      exit 1
+    }
+    mean_x = sum_x / n
+    mean_y = sum_y / n
+    numerator = sum_xy - n * mean_x * mean_y
+    denominator = sqrt((sum_x2 - n * mean_x * mean_x) * (sum_y2 - n * mean_y * mean_y))
+    if (denominator == 0) {
+      print "Correlation undefined (zero denominator)"
+      exit 1
+    }
+    r = numerator / denominator
+    printf "%.4f\n", r
+  }
+  ' "$tempfile"
+}
+
+# Check if a data file is provided
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 datafile"
+  exit 1
+fi
+
+# Input data file
+datafile=$1
+
+# Check if the data file exists
+if [ ! -f "$datafile" ]; then
+  echo "Error: File '$datafile' not found!"
+  exit 1
+fi
+
+# Temporary file to store filtered data
+tempfile=$(mktemp)
+
+# Filter out rows where the Cantril Ladder score is zero using awk
+awk -F'\t' '$8 != 0' "$datafile" > "$tempfile"
+
+# Get list of countries
+countries=$(awk -F'\t' 'NR > 1 {print $1}' "$tempfile" | sort | uniq)
+
+# Define columns for the predictors
+GDP_COLUMN=4
+POPULATION_COLUMN=5
+HOMICIDE_COLUMN=6
+LIFE_EXPECTANCY_COLUMN=7
+
+# Arrays to store correlations for each country
+declare -a gdp_correlations
+declare -a population_correlations
+declare -a homicide_correlations
+declare -a life_expectancy_correlations
+
+# Calculate correlations for each country and store in arrays
+for country in $countries; do
+  gdp_corr=$(calculate_correlation $GDP_COLUMN "$country")
+  population_corr=$(calculate_correlation $POPULATION_COLUMN "$country")
+  homicide_corr=$(calculate_correlation $HOMICIDE_COLUMN "$country")
+  life_expectancy_corr=$(calculate_correlation $LIFE_EXPECTANCY_COLUMN "$country")
+
+  if [[ "$gdp_corr" != "Insufficient data" && "$gdp_corr" != "Correlation undefined"* ]]; then
+    gdp_correlations+=("$gdp_corr")
+  fi
+  if [[ "$population_corr" != "Insufficient data" && "$population_corr" != "Correlation undefined"* ]]; then
+    population_correlations+=("$population_corr")
+  fi
+  if [[ "$homicide_corr" != "Insufficient data" && "$homicide_corr" != "Correlation undefined"* ]]; then
+    homicide_correlations+=("$homicide_corr")
+  fi
+  if [[ "$life_expectancy_corr" != "Insufficient data" && "$life_expectancy_corr" != "Correlation undefined"* ]]; then
+    life_expectancy_correlations+=("$life_expectancy_corr")
+  fi
+done
+
+# Function to calculate the mean of an array
+calculate_mean() {
+  arr=("$@")
+  sum=0
+  count=0
+  for val in "${arr[@]}"; do
+    sum=$(echo "$sum + $val" | bc -l)
+    count=$((count + 1))
+  done
+  if [ $count -eq 0 ]; then
+    echo "0"
+  else
+    echo "scale=4; $sum / $count" | bc -l
+  fi
+}
+
+# Calculate mean correlations
+mean_correlation_gdp=$(calculate_mean "${gdp_correlations[@]}")
+mean_correlation_population=$(calculate_mean "${population_correlations[@]}")
+mean_correlation_homicide=$(calculate_mean "${homicide_correlations[@]}")
+mean_correlation_life_expectancy=$(calculate_mean "${life_expectancy_correlations[@]}")
+
+# Find the maximum absolute correlation
+abs_max_correlation=$(echo $mean_correlation_gdp | awk '{print ($1 < 0) ? -$1 : $1}')
+best_predictor="GDP per capita"
+
+for predictor in "population" "homicide" "life_expectancy"; do
+  eval correlation=\$mean_correlation_${predictor}
+  abs_correlation=$(echo $correlation | awk '{print ($1 < 0) ? -$1 : $1}')
+  if (( $(echo "$abs_correlation > $abs_max_correlation" | bc -l) )); then
+    abs_max_correlation=$abs_correlation
+    best_predictor=$(echo "$predictor" | sed 's/_/ /g' | awk '{print toupper(substr($0,1,1))substr($0,2)}')
+  fi
+done
+
+# Output the results
+echo "Mean correlation of GDP per capita with Cantril ladder is $mean_correlation_gdp"
+echo "Mean correlation of Population with Cantril ladder is $mean_correlation_population"
+echo "Mean correlation of Homicide Rate with Cantril ladder is $mean_correlation_homicide"
+echo "Mean correlation of Life Expectancy with Cantril ladder is $mean_correlation_life_expectancy"
+echo "Most predictive mean correlation with the Cantril ladder is $best_predictor (r = $abs_max_correlation)"
+
+# Clean up temporary file
+rm "$tempfile"

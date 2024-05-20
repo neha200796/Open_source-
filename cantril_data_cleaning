@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# assignemnt 2, data cleaning script, student num 23754739
+
+# Define the columns to extract
+columns="Entity Code Year GDP_per_capita Population Homicide_rate Life_expectancy Cantril_ladder_score"
+
+# Create a header for the new TSV file
+echo "$columns" | tr ' ' '\t' > combined_data.tsv
+
+# Loop over the provided files
+for file in "$@"; do
+
+
+
+ # Read the header line to check if it's tab-separated
+  header=$(head -n 1 "$file")
+  if ! echo "$header" | grep -q $'\t'; then
+    echo "File is not in tab-separated format: $file"
+    return
+  fi
+
+
+    # Check if any lines have a different number of cells than the header
+  while IFS=$'\t' read -r line || [[ -n $line ]]; do
+    IFS=$'\t' read -r -a fields <<< "$line"
+    if [ "${#fields[@]}" -ne "${#headers[@]}" ]; then
+      echo "Line has a different number of cells than the header in file $file:"
+      echo "$line"
+    fi
+  done < "$file"
+
+
+ header=$(head -n 1 "$file")
+  IFS=$'\t' read -r -a headers <<< "$header"
+  for ((i=0; i<${#headers[@]}; i++)); do
+    if [ "${headers[$i]}" == "Year" ]; then
+      year_index=$i
+      break
+    fi
+  done
+
+
+  # Read the header line to find the index of the "Continent" column
+  header=$(head -n 1 "$file")
+  IFS=$'\t' read -r -a headers <<< "$header"
+  for (( i=0; i<${#headers[@]}; i++ )); do
+    if [ "${headers[i]}" == "Continent" ]; then
+      col=$i
+      break
+    fi
+  done
+
+  # Read each line from the file
+  tail -n +2 "$file" | while IFS=$'\t' read -r line; do
+    # Split the line into fields
+    IFS=$'\t' read -r -a fields <<< "$line"
+    # Check if the country code field is not empty
+    if [ -n "${fields[$year_index]}" ]; then
+      # Remove the "Continent" column
+      unset "fields[$col]"
+      # Output the modified line
+      echo -e "${fields[@]}"
+    fi
+  done >> combined_data.tsv
+done
